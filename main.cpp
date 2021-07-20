@@ -1,6 +1,6 @@
 ﻿#include<iostream>
-#include <thread>
-#include <conio.h>
+#include<conio.h>
+#include<thread>
 using namespace std;
 using namespace std::literals::chrono_literals;
 
@@ -17,14 +17,8 @@ enum Keys
 	ArrowUp = 72,
 	ArrowDown = 80,
 	ArrowLeft = 75,
-	ArrowRight = 77,
-	E = 101,		//Завести двигатель
-	e = 69,
-	I=73,
-	i=105
-
+	ArrowRight = 77
 };
-
 
 class Tank
 {
@@ -122,14 +116,17 @@ class Car
 	Engine engine;
 	unsigned int speed;	//текущая скорость
 	unsigned int MAX_SPEED;
+	unsigned int accelleration;
+
 
 	bool driver_inside;
 
 	struct Control
 	{
 		std::thread main_thread;
-		std:: thread panel_thread;
+		std::thread panel_thread;
 		std::thread idle_thread;
+		std::thread free_wheeling_thread;;
 	}control;
 public:
 	/*Car(unsigned int MAX_SPEED) :
@@ -141,18 +138,15 @@ public:
 		cout << "Your car is ready to go. Press Enter to get in." << this << endl;
 	}*/
 	Car(double engine_consumption, unsigned int tank_volume, unsigned int MAX_SPEED = DEFAULT_MAX_SPEED) :
-		engine(engine_consumption), 
+		engine(engine_consumption),
 		tank(tank_volume),
-		speed(0), 
+		speed(0),
 		MAX_SPEED(MAX_SPEED >= 100 && MAX_SPEED <= 350 ? MAX_SPEED : DEFAULT_MAX_SPEED),
+		accelleration(5),
 		driver_inside(false)
 	{
 		cout << "Your car is ready to go. Press Enter to get in." << this << endl;
 	}
-	//void consumption_XX(tank.fuel_level(), engine.consumtion_per_second()) // Расход на холостом ходу
-	//{
-	//	return this->fuel_level() -= this->consumtion_per_second();
-	//}
 	~Car()
 	{
 		cout << "Your car is over :-(" << this << endl;
@@ -160,35 +154,57 @@ public:
 	void get_in()
 	{
 		driver_inside = true;
-		control.panel_thread = thread(&Car::panel, this);		// Запускаем метод panel в потоке
+		control.panel_thread = thread(&Car::panel, this);	//Запускаем метод panel в потоке
 	}
 	void get_out()
 	{
 		driver_inside = false;
-		if (control.panel_thread.joinable())control.panel_thread.join();	// Останавливаем поток, отображающий панель приборов
+		if (control.panel_thread.joinable())control.panel_thread.join();	//Останавливаем поток, отображающий панель приборов
 	}
 	void panel() const
 	{
-
 		while (driver_inside)
 		{
-		system("CLS");
+			system("CLS");
 			cout << "Engine is " << (engine.is_started() ? "started" : "stopped") << endl;
-			
-			
-			if (engine.is_started())
-			{
-				cout << "Fuel level: " << tank.get_fuel_level() - engine.get_consumption_per_second() << " liters" << endl;
-			}		
+			cout << "Fuel level: " << tank.get_fuel_level() << " liters";
 			if (tank.get_fuel_level() < MIN_FUEL_LEVEL)cout << "LOW FUEL";
 			cout << endl;
-			//cout << " Consumption per second is: " << tank.get_fuel_level() - engine.get_consumption_per_second() << endl;
 			cout << "Speed: " << speed << " km/h" << endl;
-			std::this_thread::sleep_for(5s);
+			std::this_thread::sleep_for(1s);
 		}
 		system("CLS");
 		cout << "This is your car, press Enter to get in" << endl;
 	}
+	void start()	// Запуск машины
+	{
+		if (driver_inside && tank.get_fuel_level() > 0)
+			engine.start();
+		control.idle_thread = thread(&Car::engine_idle, this);
+	}
+	void stop()		// Глушим двигатель
+	{
+		engine.stop();
+		if (control.idle_thread.joinable())control.idle_thread.join();
+	}
+	void engine_idle()		// Расход бензина на ХХ
+	{
+		while (tank.give_fuel(engine.get_consumption_per_second()) && engine.is_started())
+		{
+			std::this_thread::sleep_for(1s);
+		}
+		engine.stop();
+	}
+	void free_wheeling()
+	{
+		while (speed > 0)
+		{
+			speed--;
+			if (speed < 0)speed = 0;
+			this_thread::sleep_for(1s);
+		}
+	}
+
 	void control_car()
 	{
 		char key;
@@ -198,29 +214,46 @@ public:
 			//cout << (int)key << "\t" << key << endl;
 			switch (key)
 			{
-			case Enter:		//Вход/выход из машины
+			case Enter:	//Вход/Выход из машины
 				if (driver_inside)get_out();
 				else get_in();
 				break;
-			case 'F':case 'f':	//Fill - заправка
+			case 'F':case 'f'://Fill - заправка
 				double amount;
 				cout << "How much?"; cin >> amount;
 				tank.fill(amount);
 				break;
-			case 'I':case 'i':	// Ignition - зажигание
-				if (engine.is_started() == false)engine.start();
-				else engine.stop();
+			case 'I':case 'i'://Ignition - зажигание.
+				if (engine.is_started())stop();
+				else start();
 				break;
-			case ArrowUp:case 'W':case 'w':	//Gas - Газ, разгон
+			case 'W':case 'w':case ArrowUp://Gas - газ, разгон
+				if (engine.is_started() && speed<MAX_SPEED)
+				{
+					speed += accelleration;
+					if (control.free_wheeling_thread.get_id() == std::thread::id())
+					{
+						control.free_wheeling_thread = std::thread(&Car::free_wheeling, this);
+					}
+				}
 				break;
-			case ArrowDown: case Space :case 'S': case 's':		// Торможение
+			case ArrowDown:case Space:case 'S':case 's':
+				if (speed > 0)
+				{
+					speed -= accelleration;
+					if (speed < accelleration)
+					{
+						speed = 0;
+						if (control.free_wheeling_thread.joinable())
+							control.free_wheeling_thread.join();
+					}
+				}
 				break;
-			
-				
 			case Escape:
+				stop();
 				get_out();
 			}
-
+			if (tank.get_fuel_level() == 0 && control.idle_thread.joinable())control.idle_thread.join();
 		} while (key != Escape);
 	}
 	void info()const
