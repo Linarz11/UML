@@ -10,6 +10,9 @@ const double DEFAULT_ENGINE_CONSUMPTION = 8;
 const unsigned int DEFAULT_MAX_SPEED = 250;
 const unsigned int DEFAULT_ACCELERATION = 10;
 
+#define OFFSET_TOP "\n\n\n\n\n\n\n\n\n"
+#define OFFSET_LEFT "\t\t\t\t\t\t"
+
 enum Keys
 {
 	Escape = 27,
@@ -175,16 +178,18 @@ public:
 		while (driver_inside)
 		{
 			system("CLS");
-			cout << "Engine is " << (engine.is_started() ? "started" : "stopped") << endl;
-			cout << "Fuel level: " << tank.get_fuel_level() << " liters";
+			cout << OFFSET_TOP;
+			cout << OFFSET_LEFT<< "Engine is " << (engine.is_started() ? "started" : "stopped") << endl;
+			cout << OFFSET_LEFT << "Fuel level: " << tank.get_fuel_level() << " liters";
 			if (tank.get_fuel_level() < MIN_FUEL_LEVEL)cout << "LOW FUEL";
 			cout << endl;
-			cout << "Engine consumption: " << engine.get_consumption_per_second() << endl;
-			cout << "Speed: " << speed << " km/h" << endl;
+			cout << OFFSET_LEFT << "Engine consumption: " << engine.get_consumption_per_second() << endl;
+			cout << OFFSET_LEFT << "Speed: " << speed << " km/h" << endl;
 			std::this_thread::sleep_for(1s);
 		}
 		system("CLS");
-		cout << "This is your car, press Enter to get in" << endl;
+		cout << OFFSET_TOP;
+		cout << OFFSET_LEFT << "This is your car, press Enter to get in" << endl;
 	}
 	void start()	// Запуск машины
 	{
